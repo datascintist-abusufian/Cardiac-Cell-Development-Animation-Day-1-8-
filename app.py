@@ -275,7 +275,8 @@ with tab1:
             next_day = day + 1 if day < 8 else 1
             st.session_state.last_day = next_day
             time.sleep(frame_delay)
-            st.experimental_rerun()
+            # Replace st.experimental_rerun() with st.rerun()
+            st.rerun()
     else:
         # Just show a static frame with a slight pulse
         frame = generate_cell_frame(day, 0.5)
