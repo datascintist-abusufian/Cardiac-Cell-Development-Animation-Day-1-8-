@@ -168,7 +168,7 @@ with tab1:
         auto_play = False
         st.session_state.last_day = day
     
-    # Function to generate cell animation frame
+    # Function to generate cell animation frame with more realistic morphology
     def generate_cell_frame(day_num, pulse=0.0):
         day_data = cell_data[day_num]
         width, height = 800, 600
@@ -177,69 +177,405 @@ with tab1:
         image = Image.new('RGB', (width, height), (255, 255, 255))
         draw = ImageDraw.Draw(image)
         
-        # Draw cells
-        for i in range(day_data["cell_count"]):
-            # Calculate position with some randomness
-            x = 50 + np.random.random() * 700
-            y = 50 + np.random.random() * 500
-            
-            # Calculate cell shape - early days are round, middle days elongated, late days fragmented
-            if day_num <= 2:
-                # Round cells
-                cell_width = 20 + np.random.random() * 10
-                cell_height = cell_width
-                # Add beating effect
-                if day_data["beat"] > 0.1:
-                    beat_factor = 1.0 + pulse * day_data["beat"] * 0.2
-                    cell_width *= beat_factor
-                    cell_height *= beat_factor
-            elif day_num <= 6:
-                # Elongated cells
-                cell_width = 15 + np.random.random() * 10
-                cell_height = 30 + np.random.random() * 20 * (day_num/4)  # Gets more elongated
-                # Add beating effect
-                if day_data["beat"] > 0.1:
-                    beat_factor = 1.0 + pulse * day_data["beat"] * 0.2
-                    cell_width *= beat_factor
-                    cell_height *= beat_factor
-                # Rotate cells
-                # Note: For simplicity, we're not rotating in this version
-            else:
-                # Fragmented cells
-                cell_width = 10 + np.random.random() * 15
-                cell_height = 20 + np.random.random() * 15
-                # Less beating in damaged cells
-                if day_data["beat"] > 0.1:
-                    beat_factor = 1.0 + pulse * day_data["beat"] * 0.1
-                    cell_width *= beat_factor
-                    cell_height *= beat_factor
-            
-            # Draw cell with a slight transparency
-            color_with_alpha = (*day_data["color"], 180)  # Add alpha for 70% opacity
-            draw.ellipse([x, y, x + cell_width, y + cell_height], fill=color_with_alpha)
-            
-            # Draw nucleus
-            nucleus_size = 0.7 if day_num <= 2 else 0.5 if day_num <= 6 else 0.3
-            nucleus_x = x + (cell_width / 2) - (cell_width * nucleus_size / 2)
-            nucleus_y = y + (cell_height / 2) - (cell_height * nucleus_size / 2)
-            nucleus_width = cell_width * nucleus_size
-            nucleus_height = cell_height * nucleus_size
-            
-            # Nucleus color - blue with transparency
-            nucleus_color = (102, 102, 204, 200)  # Slightly transparent blue
-            if day_num >= 7:  # Fading nucleus in later days
-                nucleus_color = (102, 102, 204, 100)  # More transparent
-                
-            draw.ellipse([nucleus_x, nucleus_y, nucleus_x + nucleus_width, nucleus_y + nucleus_height], 
-                          fill=nucleus_color)
+        # Create cell clusters - cells tend to grow in groups
+        num_clusters = max(3, day_num)
+        cluster_centers = []
+        for _ in range(num_clusters):
+            cluster_centers.append((50 + np.random.random() * 700, 50 + np.random.random() * 500))
         
-        # Add debris based on debris level
-        for i in range(int(day_data["debris_level"] * 100)):
+        # Draw connecting fibers between clusters (days 4-6)
+        if 4 <= day_num <= 6:
+            for i in range(len(cluster_centers)):
+                for j in range(i+1, len(cluster_centers)):
+                    # Only connect some clusters
+                    if np.random.random() < 0.6:
+                        x1, y1 = cluster_centers[i]
+                        x2, y2 = cluster_centers[j]
+                        # Draw thin connecting fibers between clusters
+                        fiber_color = (255, 180, 180, 100)  # Light red, transparent
+                        # Create a wavy line
+                        points = []
+                        steps = 10
+                        for step in range(steps + 1):
+                            t = step / steps
+                            x = x1 + (x2 - x1) * t
+                            y = y1 + (y2 - y1) * t
+                            # Add wave effect
+                            if 0 < step < steps:
+                                wave_amp = 10 + 5 * np.sin(step)
+                                x += np.sin(step * 3) * wave_amp
+                                y += np.cos(step * 2) * wave_amp
+                            points.append((x, y))
+                        
+                        # Draw the fiber line
+                        for k in range(len(points) - 1):
+                            draw.line([points[k], points[k+1]], fill=fiber_color, width=2)
+        
+        # Draw cells
+        cells_drawn = 0
+        clusters_used = 0
+        
+        while cells_drawn < day_data["cell_count"]:
+            # Select a cluster to add cells to
+            if clusters_used < len(cluster_centers):
+                cluster_x, cluster_y = cluster_centers[clusters_used]
+                clusters_used += 1
+            else:
+                # If we've used all clusters, pick a random one
+                cluster_index = np.random.randint(0, len(cluster_centers))
+                cluster_x, cluster_y = cluster_centers[cluster_index]
+            
+            # Determine how many cells to add to this cluster
+            cells_in_cluster = min(
+                max(2, int(day_data["cell_count"] / num_clusters + np.random.randint(-2, 3))),
+                day_data["cell_count"] - cells_drawn
+            )
+            
+            for _ in range(cells_in_cluster):
+                # Calculate position within the cluster
+                cluster_radius = 30 + day_num * 5
+                angle = np.random.random() * 2 * np.pi
+                distance = np.random.random() * cluster_radius
+                x = cluster_x + np.cos(angle) * distance
+                y = cluster_y + np.sin(angle) * distance
+                
+                # DAY 1: Small, round, immature cells
+                if day_num == 1:
+                    cell_width = 18 + np.random.random() * 7
+                    cell_height = cell_width
+                    cell_color = (255, 214, 204, 180)  # Light pinkish
+                    
+                    # Almost no beating
+                    beat_factor = 1.0 + pulse * 0.05
+                    cell_width *= beat_factor
+                    cell_height *= beat_factor
+                    
+                    # Draw basic round cell
+                    draw.ellipse([x, y, x + cell_width, y + cell_height], fill=cell_color)
+                    
+                    # Large nucleus
+                    nucleus_size = 0.7 + np.random.random() * 0.1
+                    nucleus_color = (102, 102, 204, 200)  # Blue nucleus
+                
+                # DAY 2: Slightly elongated, few healthy cells
+                elif day_num == 2:
+                    # 70% round cells, 30% slightly elongated
+                    if np.random.random() < 0.7:
+                        cell_width = 20 + np.random.random() * 8
+                        cell_height = cell_width
+                    else:
+                        cell_width = 15 + np.random.random() * 8
+                        cell_height = cell_width * (1.2 + np.random.random() * 0.3)
+                    
+                    # Weak beating in some cells
+                    cell_color = (255, 204, 204, 180)  # Light pink
+                    if np.random.random() < 0.4:  # Only 40% of cells beat
+                        beat_factor = 1.0 + pulse * day_data["beat"] * 0.15
+                        cell_width *= beat_factor
+                        cell_height *= beat_factor
+                    
+                    # Draw basic cell
+                    draw.ellipse([x, y, x + cell_width, y + cell_height], fill=cell_color)
+                    
+                    # Large nucleus but slightly smaller than day 1
+                    nucleus_size = 0.65 + np.random.random() * 0.1
+                    nucleus_color = (102, 102, 204, 200)  # Blue nucleus
+                
+                # DAY 3: More elongated, healthy but some aging
+                elif day_num == 3:
+                    # 40% round, 60% elongated
+                    if np.random.random() < 0.4:
+                        cell_width = 20 + np.random.random() * 8
+                        cell_height = cell_width
+                    else:
+                        cell_width = 15 + np.random.random() * 8
+                        cell_height = cell_width * (1.5 + np.random.random() * 0.5)
+                        
+                        # Rotation angle (simplified by skewing dimensions)
+                        if np.random.random() < 0.5:
+                            cell_width, cell_height = cell_height, cell_width
+                    
+                    # Beating in more cells
+                    cell_color = (255, 194, 194, 180)  # Pink
+                    if np.random.random() < 0.6:  # 60% of cells beat
+                        beat_factor = 1.0 + pulse * day_data["beat"] * 0.2
+                        cell_width *= beat_factor
+                        cell_height *= beat_factor
+                    
+                    # Draw cell
+                    draw.ellipse([x, y, x + cell_width, y + cell_height], fill=cell_color)
+                    
+                    # Add some internal structure (sarcomeres forming)
+                    if np.random.random() < 0.4:
+                        for i in range(3):
+                            line_y = y + cell_height * (0.3 + i * 0.2)
+                            line_length = cell_width * 0.6
+                            line_x = x + (cell_width - line_length) / 2
+                            draw.line([(line_x, line_y), (line_x + line_length, line_y)], 
+                                     fill=(255, 160, 160, 120), width=1)
+                    
+                    # Medium sized nucleus
+                    nucleus_size = 0.5 + np.random.random() * 0.1
+                    nucleus_color = (102, 102, 204, 200)  # Blue nucleus
+                
+                # DAY 4: Well-defined, elongated, aligned cells
+                elif day_num == 4:
+                    # 20% round, 80% elongated
+                    if np.random.random() < 0.2:
+                        cell_width = 20 + np.random.random() * 8
+                        cell_height = cell_width
+                    else:
+                        cell_width = 15 + np.random.random() * 8
+                        cell_height = cell_width * (1.8 + np.random.random() * 0.7)
+                        
+                        # Rotation angle (simplified by skewing dimensions)
+                        if np.random.random() < 0.5:
+                            cell_width, cell_height = cell_height, cell_width
+                    
+                    # Better synchronized beating
+                    cell_color = (255, 153, 153, 180)  # Medium pink
+                    if np.random.random() < 0.7:  # 70% of cells beat
+                        beat_factor = 1.0 + pulse * day_data["beat"] * 0.25
+                        cell_width *= beat_factor
+                        cell_height *= beat_factor
+                    
+                    # Draw cell
+                    draw.ellipse([x, y, x + cell_width, y + cell_height], fill=cell_color)
+                    
+                    # Add internal structure (sarcomeres more visible)
+                    if np.random.random() < 0.8:
+                        lines = int(3 + np.random.random() * 3)
+                        for i in range(lines):
+                            line_y = y + cell_height * (0.2 + i * 0.6/lines)
+                            line_length = cell_width * 0.8
+                            line_x = x + (cell_width - line_length) / 2
+                            draw.line([(line_x, line_y), (line_x + line_length, line_y)], 
+                                     fill=(255, 130, 130, 150), width=1)
+                    
+                    # Smaller nucleus
+                    nucleus_size = 0.45 + np.random.random() * 0.1
+                    nucleus_color = (102, 102, 204, 200)  # Blue nucleus
+                
+                # DAY 5-6: Peak maturity, strong organization and connection
+                elif day_num <= 6:
+                    # 10% round, 90% elongated
+                    if np.random.random() < 0.1:
+                        cell_width = 20 + np.random.random() * 8
+                        cell_height = cell_width
+                    else:
+                        cell_width = 15 + np.random.random() * 10
+                        cell_height = cell_width * (2.0 + np.random.random() * 1.0)
+                        
+                        # More consistent alignment
+                        if np.random.random() < 0.7:
+                            cell_width, cell_height = cell_height, cell_width
+                    
+                    # Strong synchronized beating
+                    intensity = 0.8 if day_num == 5 else 1.0  # Day 6 is peak activity
+                    cell_color = (255, 102 - (day_num-5)*40, 102 - (day_num-5)*40, 180)  # Stronger red for day 6
+                    if np.random.random() < 0.9:  # 90% of cells beat
+                        beat_factor = 1.0 + pulse * day_data["beat"] * 0.3 * intensity
+                        cell_width *= beat_factor
+                        cell_height *= beat_factor
+                    
+                    # Draw cell
+                    draw.ellipse([x, y, x + cell_width, y + cell_height], fill=cell_color)
+                    
+                    # Add detailed internal structure (well-formed sarcomeres)
+                    lines = int(5 + np.random.random() * 3)
+                    for i in range(lines):
+                        line_y = y + cell_height * (0.2 + i * 0.6/lines)
+                        line_length = cell_width * 0.85
+                        line_x = x + (cell_width - line_length) / 2
+                        draw.line([(line_x, line_y), (line_x + line_length, line_y)], 
+                                 fill=(255, 80, 80, 180), width=2)
+                    
+                    # Add intercellular connections
+                    if np.random.random() < 0.4:
+                        connection_x = x + cell_width
+                        connection_y = y + cell_height/2
+                        conn_length = 10 + np.random.random() * 15
+                        draw.line([(connection_x, connection_y), (connection_x + conn_length, connection_y)], 
+                                 fill=(255, 120, 120, 150), width=2)
+                    
+                    # Well-integrated nucleus
+                    nucleus_size = 0.4
+                    nucleus_color = (102, 102, 204, 200)  # Blue nucleus
+                
+                # DAY 7: Beginning of damage and fragmentation
+                elif day_num == 7:
+                    # Mix of healthy, fragmenting, and detaching cells
+                    cell_state = np.random.random()
+                    if cell_state < 0.4:  # 40% still relatively healthy
+                        cell_width = 15 + np.random.random() * 10
+                        cell_height = cell_width * (1.8 + np.random.random() * 0.5)
+                        cell_color = (204, 51, 51, 160)  # Darker red, more transparent
+                        
+                        # Some beating, but weaker
+                        if np.random.random() < 0.6:  # 60% of "healthy" cells still beat
+                            beat_factor = 1.0 + pulse * day_data["beat"] * 0.15
+                            cell_width *= beat_factor
+                            cell_height *= beat_factor
+                            
+                        # Cell membrane starting to break down
+                        if np.random.random() < 0.5:
+                            # Add "breaks" in the membrane
+                            break_angle = np.random.random() * 2 * np.pi
+                            break_size = np.random.random() * 5 + 3
+                            break_x = x + cell_width/2 + np.cos(break_angle) * cell_width/2
+                            break_y = y + cell_height/2 + np.sin(break_angle) * cell_height/2
+                            draw.ellipse([break_x-break_size/2, break_y-break_size/2, 
+                                         break_x+break_size/2, break_y+break_size/2], 
+                                        fill=(255, 255, 255, 255))  # White "break"
+                    
+                    elif cell_state < 0.7:  # 30% fragmenting
+                        # Draw multiple smaller fragments instead of one cell
+                        fragment_count = int(2 + np.random.random() * 3)
+                        for j in range(fragment_count):
+                            frag_x = x + np.random.random() * 20 - 10
+                            frag_y = y + np.random.random() * 20 - 10
+                            frag_size = 6 + np.random.random() * 8
+                            frag_color = (204, 51, 51, 140 - j*20)  # Progressively more transparent
+                            draw.ellipse([frag_x, frag_y, frag_x+frag_size, frag_y+frag_size], 
+                                        fill=frag_color)
+                        
+                        # Skip standard cell drawing
+                        cells_drawn += 1
+                        continue
+                    
+                    else:  # 30% severely damaged/detaching
+                        cell_width = 12 + np.random.random() * 8
+                        cell_height = 12 + np.random.random() * 8
+                        cell_color = (180, 40, 40, 120)  # Dark red, very transparent
+                        
+                        # No beating for severely damaged cells
+                        beat_factor = 1.0
+                        
+                        # Cell border is irregular
+                        draw.ellipse([x, y, x + cell_width, y + cell_height], fill=cell_color)
+                        
+                        # Add cellular debris around damaged cells
+                        debris_count = int(3 + np.random.random() * 5)
+                        for j in range(debris_count):
+                            debris_x = x + np.random.random() * (cell_width + 20) - 10
+                            debris_y = y + np.random.random() * (cell_height + 20) - 10
+                            debris_size = 2 + np.random.random() * 3
+                            draw.ellipse([debris_x, debris_y, debris_x+debris_size, debris_y+debris_size], 
+                                        fill=(150, 50, 50, 100 + int(np.random.random() * 50)))
+                        
+                        # Skip nucleus for severely damaged cells
+                        cells_drawn += 1
+                        continue
+                    
+                    # Draw cell (for healthy and some fragmenting cells)
+                    draw.ellipse([x, y, x + cell_width, y + cell_height], fill=cell_color)
+                    
+                    # Degraded internal structure
+                    if np.random.random() < 0.4:
+                        for i in range(2):
+                            line_y = y + cell_height * (0.3 + i * 0.3)
+                            line_length = cell_width * 0.5
+                            line_x = x + (cell_width - line_length) / 2
+                            # Broken lines
+                            segments = 3
+                            for s in range(segments):
+                                if np.random.random() < 0.7:  # Some segments missing
+                                    seg_start = line_x + (line_length * s / segments)
+                                    seg_end = line_x + (line_length * (s+1) / segments)
+                                    draw.line([(seg_start, line_y), (seg_end, line_y)], 
+                                             fill=(200, 70, 70, 120), width=1)
+                    
+                    # Nucleus sometimes fragmented or condensed
+                    if np.random.random() < 0.5:
+                        nucleus_size = 0.3 + np.random.random() * 0.1
+                        nucleus_color = (102, 102, 204, 120)  # More transparent
+                    else:
+                        # Fragmented nucleus - draw multiple small pieces
+                        for j in range(2):
+                            nuc_x = x + cell_width * (0.3 + np.random.random() * 0.4)
+                            nuc_y = y + cell_height * (0.3 + np.random.random() * 0.4)
+                            nuc_size = cell_width * 0.2
+                            draw.ellipse([nuc_x, nuc_y, nuc_x+nuc_size, nuc_y+nuc_size], 
+                                        fill=(102, 102, 204, 100))
+                        
+                        # Skip standard nucleus drawing
+                        cells_drawn += 1
+                        continue
+                
+                # DAY 8: Severe damage and cell death
+                else:  # day_num == 8
+                    # Mostly debris and fragments with very few intact cells
+                    cell_state = np.random.random()
+                    if cell_state < 0.2:  # Only 20% somewhat intact
+                        cell_width = 10 + np.random.random() * 8
+                        cell_height = cell_width * (1.0 + np.random.random() * 0.3)
+                        cell_color = (153, 51, 51, 130)  # Brownish red, very transparent
+                        
+                        # Almost no beating
+                        if np.random.random() < 0.2:  # 20% of remaining cells beat weakly
+                            beat_factor = 1.0 + pulse * day_data["beat"] * 0.1
+                            cell_width *= beat_factor
+                            cell_height *= beat_factor
+                        
+                        # Draw damaged cell
+                        draw.ellipse([x, y, x + cell_width, y + cell_height], fill=cell_color)
+                        
+                        # Severely disrupted structure - just random dots inside
+                        dots = int(2 + np.random.random() * 3)
+                        for i in range(dots):
+                            dot_x = x + np.random.random() * cell_width
+                            dot_y = y + np.random.random() * cell_height
+                            dot_size = 1 + np.random.random() * 2
+                            draw.ellipse([dot_x, dot_y, dot_x+dot_size, dot_y+dot_size], 
+                                        fill=(180, 60, 60, 150))
+                        
+                        # Some nuclei still visible but condensed
+                        nucleus_size = 0.25
+                        nucleus_color = (102, 102, 204, 80)  # Very faint
+                    
+                    else:  # 80% fragmented/debris
+                        # Draw multiple smaller fragments
+                        fragment_count = int(1 + np.random.random() * 5)
+                        for j in range(fragment_count):
+                            frag_x = x + np.random.random() * 30 - 15
+                            frag_y = y + np.random.random() * 30 - 15
+                            frag_size = 3 + np.random.random() * 6
+                            frag_color = (153, 51, 51, 100 - j*10)  # Progressively more transparent
+                            draw.ellipse([frag_x, frag_y, frag_x+frag_size, frag_y+frag_size], 
+                                        fill=frag_color)
+                        
+                        # Skip standard cell and nucleus drawing
+                        cells_drawn += 1
+                        continue
+                
+                # Draw nucleus unless skipped in special cases above
+                nucleus_x = x + (cell_width / 2) - (cell_width * nucleus_size / 2)
+                nucleus_y = y + (cell_height / 2) - (cell_height * nucleus_size / 2)
+                nucleus_width = cell_width * nucleus_size
+                nucleus_height = cell_height * nucleus_size
+                draw.ellipse([nucleus_x, nucleus_y, nucleus_x + nucleus_width, nucleus_y + nucleus_height], 
+                             fill=nucleus_color)
+                
+                cells_drawn += 1
+        
+        # Add additional debris and cellular fragments
+        # More debris in later days
+        base_debris = int(day_data["debris_level"] * 100)
+        for i in range(base_debris):
             debris_x = np.random.random() * width
             debris_y = np.random.random() * height
-            debris_size = 2 + np.random.random() * 5
+            debris_size = 2 + np.random.random() * 4
+            
+            # Debris color varies by day
+            if day_num <= 3:
+                debris_color = (180, 180, 180, 80)  # Light gray, very transparent
+            elif day_num <= 6:
+                debris_color = (180, 150, 150, 100)  # Pinkish gray
+            else:
+                debris_color = (160, 100, 100, 120)  # Reddish debris for cell breakdown
+            
             draw.ellipse([debris_x, debris_y, debris_x + debris_size, debris_y + debris_size], 
-                         fill=(150, 150, 150, 128))  # Gray debris
+                         fill=debris_color)
         
         return image
     
