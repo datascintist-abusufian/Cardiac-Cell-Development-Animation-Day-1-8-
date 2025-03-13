@@ -10,7 +10,7 @@ import base64
 st.set_page_config(page_title="Cardiac Cell Development Animation", layout="wide")
 
 # Title and description
-st.title("Cardiac Cell Development Animation (Day 1-8)")
+st.title("Cardiac Cell Development Animation (Day 1-8) by Abu Sufian")
 st.markdown("This visualization shows the morphological and functional changes in cardiac cells over an 8-day period.")
 
 # Cell data for each day
