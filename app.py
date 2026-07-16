@@ -18,11 +18,38 @@ warnings.filterwarnings('ignore')
 
 st.set_page_config(page_title="Cardiac Cell Development Advanced Analysis", layout="wide")
 
-# Title and description
+# ============================================================================
+# SESSION STATE INITIALIZATION
+# ============================================================================
+def initialize_session_state():
+    """Initialize all session state variables"""
+    if 'play_animation' not in st.session_state:
+        st.session_state.play_animation = False
+    if 'last_day' not in st.session_state:
+        st.session_state.last_day = 1
+    if 'animation_speed' not in st.session_state:
+        st.session_state.animation_speed = 2
+    if 'current_day' not in st.session_state:
+        st.session_state.current_day = 1
+    if 'models_trained' not in st.session_state:
+        st.session_state.models_trained = False
+    if 'predictions' not in st.session_state:
+        st.session_state.predictions = None
+    if 'future_days' not in st.session_state:
+        st.session_state.future_days = None
+
+# Initialize session state
+initialize_session_state()
+
+# ============================================================================
+# TITLE AND DESCRIPTION
+# ============================================================================
 st.title("🧬 Cardiac Cell Development Advanced Analysis (Day 1-8)")
 st.markdown("Comprehensive visualization and analysis of cardiac cell morphological and functional changes over an 8-day period with predictive modeling")
 
-# Cell data for each day - Enhanced with more features
+# ============================================================================
+# CELL DATA
+# ============================================================================
 cell_data = {
     1: {
         "title": "Day 1: Immature Stage",
@@ -218,7 +245,9 @@ cell_data = {
     }
 }
 
-# Advanced analysis functions
+# ============================================================================
+# ANALYTICS FUNCTIONS
+# ============================================================================
 @st.cache_data
 def prepare_dataset():
     """Prepare dataset for machine learning analysis"""
@@ -248,7 +277,6 @@ def prepare_dataset():
 def train_predictive_models(df):
     """Train predictive models for various outcomes"""
     models = {}
-    features = ['day'] + [col for col in df.columns if col not in ['day']]
     
     # Target variables to predict
     targets = ['beat', 'sync_level', 'cell_count', 'debris_level']
@@ -277,7 +305,7 @@ def predict_future(models, days_ahead=5):
     return predictions, future_days
 
 def generate_cell_frame(day_num, pulse=0.0):
-    """Generate cell animation frame with more realistic morphology"""
+    """Generate cell animation frame with realistic morphology"""
     day_data = cell_data[day_num]
     width, height = 800, 600
     
@@ -287,6 +315,7 @@ def generate_cell_frame(day_num, pulse=0.0):
     # Create cell clusters
     num_clusters = max(3, day_num)
     cluster_centers = []
+    np.random.seed(42)  # For reproducibility
     for _ in range(num_clusters):
         cluster_centers.append((50 + np.random.random() * 700, 50 + np.random.random() * 500))
     
@@ -337,7 +366,7 @@ def generate_cell_frame(day_num, pulse=0.0):
             x = cluster_x + np.cos(angle) * distance
             y = cluster_y + np.sin(angle) * distance
             
-            # Cell drawing based on day - simplified for brevity
+            # Cell size based on day
             cell_width = 15 + np.random.random() * 10
             cell_height = cell_width * (1.0 + np.random.random() * (day_num / 4))
             
@@ -380,9 +409,9 @@ def generate_cell_frame(day_num, pulse=0.0):
     
     return image
 
-# Main app
-initialize_session_state()
-
+# ============================================================================
+# MAIN APP
+# ============================================================================
 # Create tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🎬 Animation", 
@@ -392,31 +421,27 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🔬 Advanced Analytics"
 ])
 
+# ============================================================================
+# TAB 1: ANIMATION
+# ============================================================================
 with tab1:
     # Animation controls
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col1:
-        auto_play = st.checkbox("Auto Play", value=False)
+        auto_play = st.checkbox("Auto Play", value=st.session_state.play_animation)
+        st.session_state.play_animation = auto_play
     
     with col2:
-        day = st.slider("Select Day", min_value=1, max_value=8, value=1)
+        day = st.slider("Select Day", min_value=1, max_value=8, value=st.session_state.current_day)
+        st.session_state.current_day = day
     
     with col3:
-        speed = st.selectbox("Animation Speed", [1, 2, 3], index=1)
+        speed_options = {1: "Slow", 2: "Medium", 3: "Fast"}
+        speed = st.selectbox("Animation Speed", options=[1, 2, 3], 
+                           format_func=lambda x: speed_options[x],
+                           index=1)
         frame_delay = 1.0 / speed
-    
-    # Session state for animation
-    if 'play_animation' not in st.session_state:
-        st.session_state.play_animation = auto_play
-        st.session_state.last_day = day
-    
-    st.session_state.play_animation = auto_play
-    
-    if auto_play and st.session_state.last_day != day:
-        st.session_state.play_animation = False
-        auto_play = False
-        st.session_state.last_day = day
     
     # Display current day
     current_day_data = cell_data[day]
@@ -440,7 +465,7 @@ with tab1:
             
         if st.session_state.play_animation:
             next_day = day + 1 if day < 8 else 1
-            st.session_state.last_day = next_day
+            st.session_state.current_day = next_day
             time.sleep(frame_delay)
             st.rerun()
     else:
@@ -450,6 +475,9 @@ with tab1:
         byte_im = buf.getvalue()
         animation_placeholder.image(byte_im, use_container_width=True)
 
+# ============================================================================
+# TAB 2: CELL PROPERTIES
+# ============================================================================
 with tab2:
     st.subheader(f"Cell Properties - {cell_data[day]['title']}")
     
@@ -491,6 +519,9 @@ with tab2:
                 status = "🔴 Low"
             st.markdown(f"**{marker}:** {status} ({value:.2f})")
 
+# ============================================================================
+# TAB 3: DATA VISUALIZATION
+# ============================================================================
 with tab3:
     st.subheader("Quantitative Changes Over Time")
     
@@ -572,6 +603,9 @@ with tab3:
             display_df.columns = ['Day'] + [metric_labels[col] for col in selected_metrics]
             st.dataframe(display_df)
 
+# ============================================================================
+# TAB 4: PREDICTIVE ANALYSIS
+# ============================================================================
 with tab4:
     st.subheader("🤖 Predictive Analysis")
     st.markdown("Machine learning models predicting future cell behavior")
@@ -606,8 +640,8 @@ with tab4:
             
             # Predicted data
             pred_data = []
-            for day, value in predictions[target].items():
-                pred_data.append({'day': day, target: value, 'Type': 'Predicted'})
+            for day_val, value in predictions[target].items():
+                pred_data.append({'day': day_val, target: value, 'Type': 'Predicted'})
             pred_df = pd.DataFrame(pred_data)
             
             # Combine
@@ -627,7 +661,8 @@ with tab4:
             
             # Add confidence intervals (simplified)
             if target in predictions:
-                std_dev = 0.1 * np.array([predictions[target][d] for d in predictions[target].keys()])
+                pred_values = np.array([predictions[target][d] for d in predictions[target].keys()])
+                std_dev = 0.1 * pred_values
                 upper = [predictions[target][d] + std_dev[i] for i, d in enumerate(predictions[target].keys())]
                 lower = [predictions[target][d] - std_dev[i] for i, d in enumerate(predictions[target].keys())]
                 
@@ -638,7 +673,8 @@ with tab4:
                         mode='lines',
                         fill=None,
                         line=dict(width=0),
-                        showlegend=False
+                        showlegend=False,
+                        legendgroup=label
                     ),
                     row=row, col=col
                 )
@@ -649,7 +685,8 @@ with tab4:
                         mode='lines',
                         fill='tonexty',
                         line=dict(width=0),
-                        showlegend=False
+                        showlegend=False,
+                        legendgroup=label
                     ),
                     row=row, col=col
                 )
@@ -685,6 +722,9 @@ with tab4:
         pred_df.columns = [metric_labels[col] for col in pred_df.columns]
         st.dataframe(pred_df)
 
+# ============================================================================
+# TAB 5: ADVANCED ANALYTICS
+# ============================================================================
 with tab5:
     st.subheader("🔬 Advanced Analytics")
     
@@ -834,7 +874,9 @@ with tab5:
         )
         st.dataframe(health_df)
 
-# Sidebar with advanced controls
+# ============================================================================
+# SIDEBAR
+# ============================================================================
 st.sidebar.header("🎮 Controls")
 st.sidebar.markdown("""
 This app visualizes the development of cardiac cells from Day 1 to Day 8.
