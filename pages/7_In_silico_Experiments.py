@@ -67,7 +67,7 @@ with tabs[1]:
                              "n_wells": nw_, "seed": seed})
         ws = make_study(p)
         cc = pd.concat([w.cells.assign(well=w.index) for w in ws])
-        cc = cc[cc.attach_day < 8]
+        cc = cc[(cc.attach_day < 8) & (cc.death_day > cc.attach_day)]   # cells that attached before dying
         t = np.minimum(cc.death_day, 8) - cc.attach_day
         e = cc.death_day <= 8
         return t.values, e.values, p

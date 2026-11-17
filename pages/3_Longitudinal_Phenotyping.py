@@ -163,7 +163,7 @@ with tabs[4]:
 # --------------------------------------------------------------------------- survival
 with tabs[5]:
     st.markdown("Cell survival from attachment to death (Kaplan–Meier, Greenwood 95 % CI); cells alive at day 8 are censored.")
-    c = cells[np.isfinite(cells.attach_day) & (cells.attach_day < 8)].copy()
+    c = cells[np.isfinite(cells.attach_day) & (cells.attach_day < 8) & (cells.death_day > cells.attach_day)].copy()
     c["time"] = np.minimum(c.death_day, 8) - c.attach_day
     c["event"] = c.death_day <= 8
     fig = go.Figure()
