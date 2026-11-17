@@ -14,6 +14,27 @@ truth**, analysed with longitudinal statistics, and probed with virtual experime
 > All culture data are simulated with parameters chosen inside ranges reported for hiPSC-CMs. They illustrate
 > methods and mechanisms; they are not experimental measurements.
 
+## Pipeline at a glance
+
+![End-to-end pipeline with real model and analysis outputs](docs/figures/pipeline_block_diagram.png)
+
+**Figure 1. End-to-end block diagram built from real outputs of the app's code** (`scripts/make_figure.py`; nothing is
+hand-drawn). **① Simulate:** (a) latent maturation *M* and damage *D* of the six replicate wells; (b) FitzHugh–Nagumo
+lattice on the day-5 cell layout with an excitation wave in transit (white = no cell); (c) activation map of one wave;
+(d) synthetic α-actinin (green) / DAPI (blue) images on days 2, 5 and 8 — punctate, then striated and aligned, then
+fragmented with debris; (e) a frame of the bright-field beating movie. **② Measure** — the same functions run on your
+uploads: (f) nuclei-seeded watershed segmentation (yellow cells, magenta nuclei); (g) 2-D FFT sarcomere spectrum of one
+cell with its striations (inset); (h) optical-flow peak-displacement map; (i) detected beats on the optical-flow trace
+against the true active tension; (j) single-cell Ca²⁺ transients. **③ Infer:** (k) synchrony and striated-cell fraction
+(mean ± 95 % CI over wells) with the hinge-regression turning point; (l) phenotype state space with Gaussian-mixture
+states (immature → mature → degenerating) and each well's path; (m) agreement of measurements with the ground truth;
+(n) virtual gap-junction-blocker dose–response with Hill fit; (o) Kaplan–Meier survival of attached cells.
+
+**Inputs:** model parameters (or the *Culture simulator* sliders) and, optionally, your own beating-cell video
+(MP4, AVI, MOV, TIFF stack, GIF) or fluorescence image (TIFF, PNG, JPG).
+**Outputs:** 22 phenotypes × 6 wells × 8 days, validation statistics, per-cell and per-beat tables (CSV), a model card,
+and figures like this one.
+
 ## What the app does
 
 | Page | Content |
@@ -40,12 +61,30 @@ truth**, analysed with longitudinal statistics, and probed with virtual experime
 
 ## Selected results (default study, 6 wells)
 
-* Synchrony rises from R ≈ 0.3 (day 1) to a peak around day 5–6, then collapses as damage removes excitable cells.
-* Striated cells rise from ≈ 1 % to > 75 %; measured sarcomere length agrees closely with the ground truth.
-* Intensity-watershed segmentation **under-estimates cell elongation** in confluent layers (attenuation slope < 1), and
-  optical-flow beat detection fails on weak, asynchronous days — both quantified on the validation page.
-* The functional IC₅₀ of a gap-junction blocker measured from synchrony (~8 µM) is ~5× higher and steeper than the
-  molecular IC₅₀ (1.5 µM), because entrainment needs coupling above a critical value.
+| Finding | Value |
+|---|---|
+| Synchrony (Kuramoto R) rises, peaks, then collapses | 0.28 (day 1) → **0.78 (day 5)** → 0.36 (day 8) |
+| Turning point of synchrony (hinge regression, cluster bootstrap) | **day 5.0** (95 % CI 4.8–5.8) |
+| Striated cells (periodic Z-disc signal in the FFT) | 0.6 % (day 1) → **96 % (day 5)** → 0 % (day 8) |
+| Cell-state discovery (GMM on PCA, BIC) | **3 states**: immature, mature, degenerating |
+| Attached cells that die by day 8 | 57 % (Kaplan–Meier) |
+| Gap-junction blocker: functional IC₅₀ from synchrony | **8.1 µM** (95 % CI 2.8–23.4; Hill 2.1) vs molecular IC₅₀ 1.5 µM |
+| Most influential parameter for the synchronous window (Morris μ*) | cell-to-cell beat-rate heterogeneity |
+
+Validation against the simulator's ground truth (48 well-days):
+
+| Readout | Lin's CCC | Bias | Comment |
+|---|---:|---:|---|
+| Attached cells | 0.996 | +0.02 cells | accurate |
+| Orientation order S | 0.927 | −0.05 | accurate |
+| Sarcomere length (striated cells) | 0.49 | +0.03 µm (LoA −0.04 to +0.10) | accurate in absolute terms; CCC is low only because the true range is < 0.1 µm |
+| Cell aspect ratio | 0.48 | −0.55 (slope 0.43) | **attenuated**: watershed splits touching elongated cells |
+| Ca²⁺ decay τ | 0.49 | −49 ms | **underestimated**: diastolic F₀ sits above resting Ca²⁺ when decay is incomplete |
+| Beat detection (optical flow) | — | — | sensitivity 79 % on days 4–7, 38 % on days 1–3 (weak, asynchronous contraction) |
+
+The functional IC₅₀ is about 5× the molecular one and the curve is steeper because synchrony is a threshold read-out of
+coupling: a mature monolayer has a coupling reserve, and entrainment collapses only once conductance falls below a
+critical value.
 
 ## Repository structure
 
@@ -61,7 +100,9 @@ cardiosim/
   pipeline.py              # one well-day end to end (simulate → image → measure)
   io.py, ui.py             # upload readers, shared UI helpers
 scripts/precompute.py      # regenerates data/ (≈ 8 min on 2 cores)
+scripts/make_figure.py     # regenerates docs/figures/pipeline_block_diagram.png (needs matplotlib)
 data/                      # pre-computed default study
+docs/figures/              # README figure
 ```
 
 ## Running locally
@@ -70,6 +111,7 @@ data/                      # pre-computed default study
 pip install -r requirements.txt        # Python 3.10–3.12
 streamlit run app.py
 python scripts/precompute.py           # optional: regenerate data/
+pip install matplotlib && python scripts/make_figure.py   # optional: regenerate Figure 1
 ```
 
 ## Limitations
